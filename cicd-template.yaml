@@ -402,7 +402,7 @@ objects:
             {
               "clone_addr": "https://github.com/davidsf026/containerizacao-aplicacao.git"
               "uid": 1,
-              "repo_name": "openshift-tasks"
+              "repo_name": "containerizacao-aplicacao"
             }
             EOF
 

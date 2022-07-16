@@ -400,7 +400,7 @@ objects:
 
             cat <<EOF > /tmp/data.json
             {
-              "clone_addr": "https://github.com/OpenShiftDemos/openshift-tasks.git",
+              "clone_addr": "-b segundo-exercicio-redhat https://github.com/davidsf026/containerizacao-aplicacao.git"
               "uid": 1,
               "repo_name": "openshift-tasks"
             }

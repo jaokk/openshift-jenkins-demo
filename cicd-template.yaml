@@ -1,4 +1,4 @@
-apiVersion: template.openshift.io/v1
+apiVersion: v1
 kind: Template
 labels:
   template: cicd
@@ -34,16 +34,16 @@ parameters:
   name: ENABLE_QUAY
   required: true
 - displayName: Quay.io Username
-  description: Quay.io username to push the images to helloworld-sample-app repository on your Quay.io account
+  description: Quay.io username to push the images to tasks-sample-app repository on your Quay.io account
   name: QUAY_USERNAME
 - displayName: Quay.io Password
-  description: Quay.io password to push the images to helloworld-sample-app repository on your Quay.io account
+  description: Quay.io password to push the images to tasks-sample-app repository on your Quay.io account
   name: QUAY_PASSWORD
 - displayName: Quay.io Image Repository
-  description: Quay.io repository for pushing helloworld container images
+  description: Quay.io repository for pushing Tasks container images
   name: QUAY_REPOSITORY
   required: true
-  value: helloworld-app
+  value: tasks-app
 objects:
 - apiVersion: v1
   groupNames: null
@@ -64,7 +64,7 @@ objects:
     labels:
       app: cicd-pipeline
       name: cicd-pipeline
-    name: helloworld-pipeline
+    name: tasks-pipeline
   spec:
     triggers:
       - type: GitHub
@@ -86,7 +86,7 @@ objects:
         - name: ENABLE_QUAY
           value: ${ENABLE_QUAY}
         jenkinsfile: |-
-          def mvnCmd = "mvn -s ../configuration/cicd-settings-nexus3.xml"
+          def mvnCmd = "mvn -s configuration/cicd-settings-nexus3.xml"
 
           pipeline {
             agent {
@@ -95,7 +95,7 @@ objects:
             stages {
               stage('Build App') {
                 steps {
-                  git branch: 'segundo-exercicio-redhat', url: 'https://github.com/davidsf026/containerizacao-aplicacao.git'
+                  git branch: 'segundo-exercicio-redhat', url: 'http://gogs:3000/gogs/containerizacao-aplicacao.git'
                   sh "cd helloworld && ${mvnCmd} install -Denforcer.skip=true -DskipTests=true"
                 }
               }
@@ -117,7 +117,7 @@ objects:
                   script {
                     openshift.withCluster() {
                       openshift.withProject(env.DEV_PROJECT) {
-                        openshift.selector("bc", "helloworld").startBuild("--from-file=helloworld/target/ROOT.war", "--wait=true")
+                        openshift.selector("bc", "tasks").startBuild("--from-file=helloworld/target/ROOT.war", "--wait=true")
                       }
                     }
                   }
@@ -128,7 +128,7 @@ objects:
                   script {
                     openshift.withCluster() {
                       openshift.withProject(env.DEV_PROJECT) {
-                        openshift.selector("dc", "helloworld").rollout().latest();
+                        openshift.selector("dc", "tasks").rollout().latest();
                       }
                     }
                   }
@@ -147,10 +147,10 @@ objects:
                     openshift.withCluster() {
                       if (env.ENABLE_QUAY.toBoolean()) {
                         withCredentials([usernamePassword(credentialsId: "${openshift.project()}-quay-cicd-secret", usernameVariable: "QUAY_USER", passwordVariable: "QUAY_PWD")]) {
-                          sh "skopeo copy docker://quay.io//helloworld-app:latest docker://quay.io//helloworld-app:stage --src-creds \"$QUAY_USER:$QUAY_PWD\" --dest-creds \"$QUAY_USER:$QUAY_PWD\" --src-tls-verify=false --dest-tls-verify=false"
+                          sh "skopeo copy docker://quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:latest docker://quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:stage --src-creds \"$QUAY_USER:$QUAY_PWD\" --dest-creds \"$QUAY_USER:$QUAY_PWD\" --src-tls-verify=false --dest-tls-verify=false"
                         }
                       } else {
-                        openshift.tag("${env.DEV_PROJECT}/helloworld:latest", "${env.STAGE_PROJECT}/helloworld:stage")
+                        openshift.tag("${env.DEV_PROJECT}/tasks:latest", "${env.STAGE_PROJECT}/tasks:stage")
                       }
                     }
                   }
@@ -161,7 +161,7 @@ objects:
                   script {
                     openshift.withCluster() {
                       openshift.withProject(env.STAGE_PROJECT) {
-                        openshift.selector("dc", "helloworld").rollout().latest();
+                        openshift.selector("dc", "tasks").rollout().latest();
                       }
                     }
                   }
@@ -273,8 +273,9 @@ objects:
             # adjust jenkins 
             oc set resources dc/jenkins --limits=cpu=2,memory=2Gi --requests=cpu=100m,memory=512Mi 
             oc label dc jenkins app=jenkins --overwrite 
+
             # setup dev env
-            oc import-image registry.redhat.io/jboss-eap-7/eap74-openjdk11-openshift-rhel8 --confirm -n ${DEV_PROJECT} 
+            oc import-image wildfly --from=openshift/wildfly-120-centos7 --confirm -n ${DEV_PROJECT} 
             
             if [ "${ENABLE_QUAY}" == "true" ] ; then
               # cicd
@@ -283,46 +284,49 @@ objects:
               
               # dev
               oc create secret docker-registry quay-cicd-secret --docker-server=quay.io --docker-username="${QUAY_USERNAME}" --docker-password="${QUAY_PASSWORD}" --docker-email=cicd@redhat.com -n ${DEV_PROJECT}
-              oc new-build --name=helloworld --image-stream=eap74-openjdk11-openshift-rhel8:latest --binary=true --push-secret=quay-cicd-secret --to-docker --to='quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:latest' -n ${DEV_PROJECT}
-              oc new-app --name=helloworld --docker-image=quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:latest --allow-missing-images --as-deployment-config -n ${DEV_PROJECT}
-              oc set triggers dc helloworld --remove-all -n ${DEV_PROJECT}
-              oc patch dc helloworld -p '{"spec": {"template": {"spec": {"containers": [{"name": "helloworld", "imagePullPolicy": "Always"}]}}}}' -n ${DEV_PROJECT}
-              oc delete is helloworld -n ${DEV_PROJECT}
+              oc new-build --name=tasks --image-stream=wildfly:latest --binary=true --push-secret=quay-cicd-secret --to-docker --to='quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:latest' -n ${DEV_PROJECT}
+              oc new-app --name=tasks --docker-image=quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:latest --allow-missing-images --as-deployment-config -n ${DEV_PROJECT}
+              oc set triggers dc tasks --remove-all -n ${DEV_PROJECT}
+              oc patch dc tasks -p '{"spec": {"template": {"spec": {"containers": [{"name": "tasks", "imagePullPolicy": "Always"}]}}}}' -n ${DEV_PROJECT}
+              oc delete is tasks -n ${DEV_PROJECT}
               oc secrets link default quay-cicd-secret --for=pull -n ${DEV_PROJECT}
               
               # stage
               oc create secret docker-registry quay-cicd-secret --docker-server=quay.io --docker-username="${QUAY_USERNAME}" --docker-password="${QUAY_PASSWORD}" --docker-email=cicd@redhat.com -n ${STAGE_PROJECT}
-              oc new-app --name=helloworld --docker-image=quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:stage --allow-missing-images --as-deployment-config -n ${STAGE_PROJECT}
-              oc set triggers dc helloworld --remove-all -n ${STAGE_PROJECT}
-              oc patch dc helloworld -p '{"spec": {"template": {"spec": {"containers": [{"name": "helloworld", "imagePullPolicy": "Always"}]}}}}' -n ${STAGE_PROJECT}
-              oc delete is helloworld -n ${STAGE_PROJECT}
+              oc new-app --name=tasks --docker-image=quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:stage --allow-missing-images --as-deployment-config -n ${STAGE_PROJECT}
+              oc set triggers dc tasks --remove-all -n ${STAGE_PROJECT}
+              oc patch dc tasks -p '{"spec": {"template": {"spec": {"containers": [{"name": "tasks", "imagePullPolicy": "Always"}]}}}}' -n ${STAGE_PROJECT}
+              oc delete is tasks -n ${STAGE_PROJECT}
               oc secrets link default quay-cicd-secret --for=pull -n ${STAGE_PROJECT}
             else
               # dev
-              oc new-build --name=helloworld --image-stream=eap74-openjdk11-openshift-rhel8:latest --binary=true -n ${DEV_PROJECT}
-              oc new-app helloworld:latest --allow-missing-images --as-deployment-config -n ${DEV_PROJECT}
-              oc set triggers dc -l app=helloworld --containers=helloworld --from-image=helloworld:latest --manual -n ${DEV_PROJECT}
+              oc new-build --name=tasks --image-stream=wildfly:latest --binary=true -n ${DEV_PROJECT}
+              oc new-app tasks:latest --allow-missing-images --as-deployment-config -n ${DEV_PROJECT}
+              oc set triggers dc -l app=tasks --containers=tasks --from-image=tasks:latest --manual -n ${DEV_PROJECT}
               
               # stage
-              oc new-app helloworld:stage --allow-missing-images --as-deployment-config -n ${STAGE_PROJECT}
-              oc set triggers dc -l app=helloworld --containers=helloworld --from-image=helloworld:stage --manual -n ${STAGE_PROJECT}
+              oc new-app tasks:stage --allow-missing-images --as-deployment-config -n ${STAGE_PROJECT}
+              oc set triggers dc -l app=tasks --containers=tasks --from-image=tasks:stage --manual -n ${STAGE_PROJECT}
             fi
             
             # dev project
-            oc expose dc/helloworld --port=8080 -n ${DEV_PROJECT}
-            oc expose svc/helloworld -n ${DEV_PROJECT}
-            oc set probe dc/helloworld --readiness --get-url=http://:8080/ws/demo/healthcheck --initial-delay-seconds=30 --failure-threshold=10 --period-seconds=10 -n ${DEV_PROJECT}
-            oc set probe dc/helloworld --liveness  --get-url=http://:8080/ws/demo/healthcheck --initial-delay-seconds=180 --failure-threshold=10 --period-seconds=10 -n ${DEV_PROJECT}
-            oc rollout cancel dc/helloworld -n ${STAGE_PROJECT}
+            oc expose dc/tasks --port=8080 -n ${DEV_PROJECT}
+            oc expose svc/tasks -n ${DEV_PROJECT}
+            oc set probe dc/tasks --readiness --get-url=http://:8080/ --initial-delay-seconds=30 --failure-threshold=10 --period-seconds=10 -n ${DEV_PROJECT}
+            oc set probe dc/tasks --liveness  --get-url=http://:8080/ --initial-delay-seconds=180 --failure-threshold=10 --period-seconds=10 -n ${DEV_PROJECT}
+            oc rollout cancel dc/tasks -n ${STAGE_PROJECT}
+
             # stage project
-            oc expose dc/helloworld --port=8080 -n ${STAGE_PROJECT}
-            oc expose svc/helloworld -n ${STAGE_PROJECT}
-            oc set probe dc/helloworld --readiness --get-url=http://:8080/ws/demo/healthcheck --initial-delay-seconds=30 --failure-threshold=10 --period-seconds=10 -n ${STAGE_PROJECT}
-            oc set probe dc/helloworld --liveness  --get-url=http://:8080/ws/demo/healthcheck --initial-delay-seconds=180 --failure-threshold=10 --period-seconds=10 -n ${STAGE_PROJECT}
-            oc rollout cancel dc/helloworld -n ${DEV_PROJECT}
+            oc expose dc/tasks --port=8080 -n ${STAGE_PROJECT}
+            oc expose svc/tasks -n ${STAGE_PROJECT}
+            oc set probe dc/tasks --readiness --get-url=http://:8080/ --initial-delay-seconds=30 --failure-threshold=10 --period-seconds=10 -n ${STAGE_PROJECT}
+            oc set probe dc/tasks --liveness  --get-url=http://:8080/ --initial-delay-seconds=180 --failure-threshold=10 --period-seconds=10 -n ${STAGE_PROJECT}
+            oc rollout cancel dc/tasks -n ${DEV_PROJECT}
+
             # deploy gogs
             HOSTNAME=$(oc get route jenkins -o template --template='{{.spec.host}}' | sed "s/jenkins-${CICD_NAMESPACE}.//g")
             GOGS_HOSTNAME="gogs-$CICD_NAMESPACE.$HOSTNAME"
+
             if [ "${EPHEMERAL}" == "true" ] ; then
               oc new-app -f https://raw.githubusercontent.com/siamaksade/gogs/master/gogs-template-ephemeral.yaml \
                   --param=GOGS_VERSION=0.11.34 \
@@ -336,32 +340,42 @@ objects:
             fi
             
             sleep 5
+
             if [ "${EPHEMERAL}" == "true" ] ; then
               oc process -f https://raw.githubusercontent.com/siamaksade/sonarqube/8/sonarqube-template.yaml | oc create -f -
             else
               oc process -f https://raw.githubusercontent.com/siamaksade/sonarqube/8/sonarqube-persistent-template.yaml | oc create -f -
             fi
+
             oc set resources dc/sonarqube --limits=cpu=1,memory=2.5Gi --requests=cpu=200m,memory=512Mi
+
             if [ "${EPHEMERAL}" == "true" ] ; then
               oc new-app -f https://raw.githubusercontent.com/OpenShiftDemos/nexus/master/nexus3-template.yaml --param=NEXUS_VERSION=3.13.0 --param=MAX_MEMORY=2Gi
             else
               oc new-app -f https://raw.githubusercontent.com/OpenShiftDemos/nexus/master/nexus3-persistent-template.yaml --param=NEXUS_VERSION=3.13.0 --param=MAX_MEMORY=2Gi
             fi
+
             oc set resources dc/nexus --requests=cpu=200m --limits=cpu=2
+
             GOGS_SVC=$(oc get svc gogs -o template --template='{{.spec.clusterIP}}')
             GOGS_USER=gogs
             GOGS_PWD=gogs
+
             oc rollout status dc gogs
+
             # Even though the rollout is complete gogs isn't always ready to create the admin user
             sleep 10
+
             # Try 10 times to create the admin user. Fail after that.
             for i in {1..10};
             do
+
               _RETURN=$(curl -o /tmp/curl.log -sL --post302 -w "%{http_code}" http://$GOGS_SVC:3000/user/sign_up \
                 --form user_name=$GOGS_USER \
                 --form password=$GOGS_PWD \
                 --form retype=$GOGS_PWD \
                 --form email=admin@gogs.com)
+
               if [ $_RETURN == "200" ] || [ $_RETURN == "302" ]
               then
                 echo "SUCCESS: Created gogs admin user"
@@ -371,29 +385,37 @@ objects:
                 cat /tmp/curl.log
                 exit 255
               fi
+
               # Sleep between each attempt
               sleep 10
+
             done
+
+
             cat <<EOF > /tmp/data.json
             {
-              "clone_addr": "https://github.com/davidsf026/containerizacao-aplicacao.git",
+              "clone_addr": "https://github.com/davidsf026/containerizacao-aplicacao",
               "uid": 1,
               "repo_name": "containerizacao-aplicacao"
             }
             EOF
+
             _RETURN=$(curl -o /tmp/curl.log -sL -w "%{http_code}" -H "Content-Type: application/json" \
             -u $GOGS_USER:$GOGS_PWD -X POST http://$GOGS_SVC:3000/api/v1/repos/migrate -d @/tmp/data.json)
+
             if [ $_RETURN != "201" ] ;then
-              echo "ERROR: Failed to import containerizacao-aplicacao GitHub repo"
+              echo "ERROR: Failed to import openshift-tasks GitHub repo"
               cat /tmp/curl.log
               exit 255
             fi
+
             sleep 5
+
             cat <<EOF > /tmp/data.json
             {
               "type": "gogs",
               "config": {
-                "url": "https://openshift.default.svc.cluster.local/apis/build.openshift.io/v1/namespaces/$CICD_NAMESPACE/buildconfigs/helloworld-pipeline/webhooks/${WEBHOOK_SECRET}/generic",
+                "url": "https://openshift.default.svc.cluster.local/apis/build.openshift.io/v1/namespaces/$CICD_NAMESPACE/buildconfigs/tasks-pipeline/webhooks/${WEBHOOK_SECRET}/generic",
                 "content_type": "json"
               },
               "events": [
@@ -402,13 +424,16 @@ objects:
               "active": true
             }
             EOF
+
             _RETURN=$(curl -o /tmp/curl.log -sL -w "%{http_code}" -H "Content-Type: application/json" \
-            -u $GOGS_USER:$GOGS_PWD -X POST http://$GOGS_SVC:3000/api/v1/repos/gogs/containerizacao-aplicacao/hooks -d @/tmp/data.json)
+            -u $GOGS_USER:$GOGS_PWD -X POST http://$GOGS_SVC:3000/api/v1/repos/gogs/openshift-tasks/hooks -d @/tmp/data.json)
+
             if [ $_RETURN != "201" ] ; then
               echo "ERROR: Failed to set webhook"
               cat /tmp/curl.log
               exit 255
             fi
+
             oc label dc jenkins "app.kubernetes.io/part-of"="jenkins" --overwrite
             oc label dc nexus "app.kubernetes.io/part-of"="nexus" --overwrite
           image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest

@@ -95,35 +95,29 @@ objects:
             stages {
               stage('Build App') {
                 steps {
-                  git branch: 'eap-7', url: 'http://gogs:3000/gogs/openshift-tasks.git'
-                  sh "${mvnCmd} install -DskipTests=true"
+                  git branch: 'segundo-exercicio-redhat', url: 'http://gogs:3000/gogs/containerizacao-aplicacao.git'
+                  sh "cd helloworld && ${mvnCmd} install -Denforcer.skip=true -DskipTests=true"
                 }
               }
               stage('Test') {
                 steps {
-                  sh "${mvnCmd} test"
-                  step([$class: 'JUnitResultArchiver', testResults: '**/target/surefire-reports/TEST-*.xml'])
+                  sh "cd helloworld && ${mvnCmd} test -Denforcer.skip=true"
                 }
               }
               stage('Code Analysis') {
                 steps {
                   script {
-                    sh "${mvnCmd} install sonar:sonar -Dsonar.host.url=http://sonarqube:9000 -DskipTests=true"
+                    sh "cd helloworld && ${mvnCmd} install sonar:sonar -Dsonar.host.url=http://sonarqube:9000 -Denforcer.skip=true -DskipTests=true"
                   }
-                }
-              }
-              stage('Archive App') {
-                steps {
-                  sh "${mvnCmd} deploy -DskipTests=true -P nexus3"
                 }
               }
               stage('Build Image') {
                 steps {
-                  sh "cp target/openshift-tasks.war target/ROOT.war"
+                  sh "cp helloworld/target/helloworld.war helloworld/target/ROOT.war"
                   script {
                     openshift.withCluster() {
                       openshift.withProject(env.DEV_PROJECT) {
-                        openshift.selector("bc", "tasks").startBuild("--from-file=target/ROOT.war", "--wait=true")
+                        openshift.selector("bc", "tasks").startBuild("--from-file=helloworld/target/ROOT.war", "--wait=true")
                       }
                     }
                   }
@@ -281,7 +275,7 @@ objects:
             oc label dc jenkins app=jenkins --overwrite 
 
             # setup dev env
-            oc import-image wildfly --from=openshift/wildfly-120-centos7 --confirm -n ${DEV_PROJECT} 
+            oc import-image registry.redhat.io/jboss-eap-7/eap74-openjdk11-openshift-rhel8 --confirm -n ${DEV_PROJECT} 
             
             if [ "${ENABLE_QUAY}" == "true" ] ; then
               # cicd
@@ -290,7 +284,7 @@ objects:
               
               # dev
               oc create secret docker-registry quay-cicd-secret --docker-server=quay.io --docker-username="${QUAY_USERNAME}" --docker-password="${QUAY_PASSWORD}" --docker-email=cicd@redhat.com -n ${DEV_PROJECT}
-              oc new-build --name=tasks --image-stream=wildfly:latest --binary=true --push-secret=quay-cicd-secret --to-docker --to='quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:latest' -n ${DEV_PROJECT}
+              oc new-build --name=tasks --image-stream=eap74-openjdk11-openshift-rhel8:latest --binary=true --push-secret=quay-cicd-secret --to-docker --to='quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:latest' -n ${DEV_PROJECT}
               oc new-app --name=tasks --docker-image=quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:latest --allow-missing-images --as-deployment-config -n ${DEV_PROJECT}
               oc set triggers dc tasks --remove-all -n ${DEV_PROJECT}
               oc patch dc tasks -p '{"spec": {"template": {"spec": {"containers": [{"name": "tasks", "imagePullPolicy": "Always"}]}}}}' -n ${DEV_PROJECT}
@@ -306,7 +300,7 @@ objects:
               oc secrets link default quay-cicd-secret --for=pull -n ${STAGE_PROJECT}
             else
               # dev
-              oc new-build --name=tasks --image-stream=wildfly:latest --binary=true -n ${DEV_PROJECT}
+              oc new-build --name=tasks --image-stream=eap74-openjdk11-openshift-rhel8:latest --binary=true -n ${DEV_PROJECT}
               oc new-app tasks:latest --allow-missing-images --as-deployment-config -n ${DEV_PROJECT}
               oc set triggers dc -l app=tasks --containers=tasks --from-image=tasks:latest --manual -n ${DEV_PROJECT}
               
@@ -318,15 +312,15 @@ objects:
             # dev project
             oc expose dc/tasks --port=8080 -n ${DEV_PROJECT}
             oc expose svc/tasks -n ${DEV_PROJECT}
-            oc set probe dc/tasks --readiness --get-url=http://:8080/ws/demo/healthcheck --initial-delay-seconds=30 --failure-threshold=10 --period-seconds=10 -n ${DEV_PROJECT}
-            oc set probe dc/tasks --liveness  --get-url=http://:8080/ws/demo/healthcheck --initial-delay-seconds=180 --failure-threshold=10 --period-seconds=10 -n ${DEV_PROJECT}
+            oc set probe dc/tasks --readiness --get-url=http://:8080/ --initial-delay-seconds=30 --failure-threshold=10 --period-seconds=10 -n ${DEV_PROJECT}
+            oc set probe dc/tasks --liveness  --get-url=http://:8080/ --initial-delay-seconds=180 --failure-threshold=10 --period-seconds=10 -n ${DEV_PROJECT}
             oc rollout cancel dc/tasks -n ${STAGE_PROJECT}
 
             # stage project
             oc expose dc/tasks --port=8080 -n ${STAGE_PROJECT}
             oc expose svc/tasks -n ${STAGE_PROJECT}
-            oc set probe dc/tasks --readiness --get-url=http://:8080/ws/demo/healthcheck --initial-delay-seconds=30 --failure-threshold=10 --period-seconds=10 -n ${STAGE_PROJECT}
-            oc set probe dc/tasks --liveness  --get-url=http://:8080/ws/demo/healthcheck --initial-delay-seconds=180 --failure-threshold=10 --period-seconds=10 -n ${STAGE_PROJECT}
+            oc set probe dc/tasks --readiness --get-url=http://:8080/ --initial-delay-seconds=30 --failure-threshold=10 --period-seconds=10 -n ${STAGE_PROJECT}
+            oc set probe dc/tasks --liveness  --get-url=http://:8080/ --initial-delay-seconds=180 --failure-threshold=10 --period-seconds=10 -n ${STAGE_PROJECT}
             oc rollout cancel dc/tasks -n ${DEV_PROJECT}
 
             # deploy gogs
@@ -400,9 +394,9 @@ objects:
 
             cat <<EOF > /tmp/data.json
             {
-              "clone_addr": "https://github.com/OpenShiftDemos/openshift-tasks.git",
+              "clone_addr": "https://github.com/davidsf026/containerizacao-aplicacao",
               "uid": 1,
-              "repo_name": "openshift-tasks"
+              "repo_name": "containerizacao-aplicacao"
             }
             EOF
 
@@ -410,7 +404,7 @@ objects:
             -u $GOGS_USER:$GOGS_PWD -X POST http://$GOGS_SVC:3000/api/v1/repos/migrate -d @/tmp/data.json)
 
             if [ $_RETURN != "201" ] ;then
-              echo "ERROR: Failed to import openshift-tasks GitHub repo"
+              echo "ERROR: Failed to import containerizacao-aplicacao GitHub repo"
               cat /tmp/curl.log
               exit 255
             fi
@@ -432,7 +426,7 @@ objects:
             EOF
 
             _RETURN=$(curl -o /tmp/curl.log -sL -w "%{http_code}" -H "Content-Type: application/json" \
-            -u $GOGS_USER:$GOGS_PWD -X POST http://$GOGS_SVC:3000/api/v1/repos/gogs/openshift-tasks/hooks -d @/tmp/data.json)
+            -u $GOGS_USER:$GOGS_PWD -X POST http://$GOGS_SVC:3000/api/v1/repos/gogs/containerizacao-aplicacao/hooks -d @/tmp/data.json)
 
             if [ $_RETURN != "201" ] ; then
               echo "ERROR: Failed to set webhook"

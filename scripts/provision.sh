@@ -141,8 +141,8 @@ GITHUB_ACCOUNT=${GITHUB_ACCOUNT:-siamaksade}
 GITHUB_REF=${GITHUB_REF:-ocp-4.6}
 
 function deploy() {
-  oc $ARG_OC_OPS new-project dev-$PRJ_SUFFIX   --display-name="helloworld - Dev"
-  oc $ARG_OC_OPS new-project stage-$PRJ_SUFFIX --display-name="helloworld - Stage"
+  oc $ARG_OC_OPS new-project dev-$PRJ_SUFFIX   --display-name="Tasks - Dev"
+  oc $ARG_OC_OPS new-project stage-$PRJ_SUFFIX --display-name="Tasks - Stage"
   oc $ARG_OC_OPS new-project cicd-$PRJ_SUFFIX  --display-name="CI/CD"
 
   sleep 2
@@ -169,7 +169,7 @@ function deploy() {
 
   sleep 2
 
-  local template=https://raw.githubusercontent.com/davidsf026/openshift-jenkins-demo/ocp-4.6/cicd-template.yaml
+  local template=https://raw.githubusercontent.com/$GITHUB_ACCOUNT/openshift-cd-demo/$GITHUB_REF/cicd-template.yaml
   echo "Using template $template"
   oc $ARG_OC_OPS new-app -f $template -p DEV_PROJECT=dev-$PRJ_SUFFIX -p STAGE_PROJECT=stage-$PRJ_SUFFIX -p EPHEMERAL=$ARG_EPHEMERAL -p ENABLE_QUAY=$ARG_ENABLE_QUAY -p QUAY_USERNAME=$ARG_QUAY_USER -p QUAY_PASSWORD=$ARG_QUAY_PASS -n cicd-$PRJ_SUFFIX 
 }

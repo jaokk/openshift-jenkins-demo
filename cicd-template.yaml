@@ -128,7 +128,7 @@ objects:
                   script {
                     openshift.withCluster() {
                       openshift.withProject(env.DEV_PROJECT) {
-                        openshift.selector("dc", "helloworld").rollout().latest();
+                        openshift.selector("dc", "tasks").rollout().latest();
                       }
                     }
                   }
@@ -161,7 +161,7 @@ objects:
                   script {
                     openshift.withCluster() {
                       openshift.withProject(env.STAGE_PROJECT) {
-                        openshift.selector("dc", "helloworld").rollout().latest();
+                        openshift.selector("dc", "tasks").rollout().latest();
                       }
                     }
                   }
@@ -285,43 +285,43 @@ objects:
               # dev
               oc create secret docker-registry quay-cicd-secret --docker-server=quay.io --docker-username="${QUAY_USERNAME}" --docker-password="${QUAY_PASSWORD}" --docker-email=cicd@redhat.com -n ${DEV_PROJECT}
               oc new-build --name=tasks --image-stream=eap74-openjdk11-openshift-rhel8:latest --binary=true --push-secret=quay-cicd-secret --to-docker --to='quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:latest' -n ${DEV_PROJECT}
-              oc new-app --name=helloworld --docker-image=quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:latest --allow-missing-images --as-deployment-config -n ${DEV_PROJECT}
-              oc set triggers dc helloworld --remove-all -n ${DEV_PROJECT}
-              oc patch dc helloworld -p '{"spec": {"template": {"spec": {"containers": [{"name": "helloworld", "imagePullPolicy": "Always"}]}}}}' -n ${DEV_PROJECT}
+              oc new-app --name=tasks --docker-image=quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:latest --allow-missing-images --as-deployment-config -n ${DEV_PROJECT}
+              oc set triggers dc tasks --remove-all -n ${DEV_PROJECT}
+              oc patch dc tasks -p '{"spec": {"template": {"spec": {"containers": [{"name": "tasks", "imagePullPolicy": "Always"}]}}}}' -n ${DEV_PROJECT}
               oc delete is tasks -n ${DEV_PROJECT}
               oc secrets link default quay-cicd-secret --for=pull -n ${DEV_PROJECT}
               
               # stage
               oc create secret docker-registry quay-cicd-secret --docker-server=quay.io --docker-username="${QUAY_USERNAME}" --docker-password="${QUAY_PASSWORD}" --docker-email=cicd@redhat.com -n ${STAGE_PROJECT}
-              oc new-app --name=helloworld --docker-image=quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:stage --allow-missing-images --as-deployment-config -n ${STAGE_PROJECT}
-              oc set triggers dc helloworld --remove-all -n ${STAGE_PROJECT}
-              oc patch dc helloworld -p '{"spec": {"template": {"spec": {"containers": [{"name": "helloworld", "imagePullPolicy": "Always"}]}}}}' -n ${STAGE_PROJECT}
+              oc new-app --name=tasks --docker-image=quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:stage --allow-missing-images --as-deployment-config -n ${STAGE_PROJECT}
+              oc set triggers dc tasks --remove-all -n ${STAGE_PROJECT}
+              oc patch dc tasks -p '{"spec": {"template": {"spec": {"containers": [{"name": "tasks", "imagePullPolicy": "Always"}]}}}}' -n ${STAGE_PROJECT}
               oc delete is tasks -n ${STAGE_PROJECT}
               oc secrets link default quay-cicd-secret --for=pull -n ${STAGE_PROJECT}
             else
               # dev
               oc new-build --name=tasks --image-stream=eap74-openjdk11-openshift-rhel8:latest --binary=true -n ${DEV_PROJECT}
               oc new-app tasks:latest --allow-missing-images --as-deployment-config -n ${DEV_PROJECT}
-              oc set triggers dc -l app=helloworld --containers=helloworld --from-image=tasks:latest --manual -n ${DEV_PROJECT}
+              oc set triggers dc -l app=tasks --containers=tasks --from-image=tasks:latest --manual -n ${DEV_PROJECT}
               
               # stage
               oc new-app tasks:stage --allow-missing-images --as-deployment-config -n ${STAGE_PROJECT}
-              oc set triggers dc -l app=helloworld --containers=helloworld --from-image=tasks:stage --manual -n ${STAGE_PROJECT}
+              oc set triggers dc -l app=tasks --containers=tasks --from-image=tasks:stage --manual -n ${STAGE_PROJECT}
             fi
             
             # dev project
-            oc expose dc/helloworld --port=8080 -n ${DEV_PROJECT}
-            oc expose svc/helloworld -n ${DEV_PROJECT}
-            oc set probe dc/helloworld --readiness --get-url=http://:8080/ --initial-delay-seconds=30 --failure-threshold=10 --period-seconds=10 -n ${DEV_PROJECT}
-            oc set probe dc/helloworld --liveness  --get-url=http://:8080/ --initial-delay-seconds=180 --failure-threshold=10 --period-seconds=10 -n ${DEV_PROJECT}
-            oc rollout cancel dc/helloworld -n ${STAGE_PROJECT}
+            oc expose dc/tasks --port=8080 -n ${DEV_PROJECT}
+            oc expose svc/tasks -n ${DEV_PROJECT}
+            oc set probe dc/tasks --readiness --get-url=http://:8080/ --initial-delay-seconds=30 --failure-threshold=10 --period-seconds=10 -n ${DEV_PROJECT}
+            oc set probe dc/tasks --liveness  --get-url=http://:8080/ --initial-delay-seconds=180 --failure-threshold=10 --period-seconds=10 -n ${DEV_PROJECT}
+            oc rollout cancel dc/tasks -n ${STAGE_PROJECT}
 
             # stage project
-            oc expose dc/helloworld --port=8080 -n ${STAGE_PROJECT}
-            oc expose svc/helloworld -n ${STAGE_PROJECT}
-            oc set probe dc/helloworld --readiness --get-url=http://:8080/ --initial-delay-seconds=30 --failure-threshold=10 --period-seconds=10 -n ${STAGE_PROJECT}
-            oc set probe dc/helloworld --liveness  --get-url=http://:8080/ --initial-delay-seconds=180 --failure-threshold=10 --period-seconds=10 -n ${STAGE_PROJECT}
-            oc rollout cancel dc/helloworld -n ${DEV_PROJECT}
+            oc expose dc/tasks --port=8080 -n ${STAGE_PROJECT}
+            oc expose svc/tasks -n ${STAGE_PROJECT}
+            oc set probe dc/tasks --readiness --get-url=http://:8080/ --initial-delay-seconds=30 --failure-threshold=10 --period-seconds=10 -n ${STAGE_PROJECT}
+            oc set probe dc/tasks --liveness  --get-url=http://:8080/ --initial-delay-seconds=180 --failure-threshold=10 --period-seconds=10 -n ${STAGE_PROJECT}
+            oc rollout cancel dc/tasks -n ${DEV_PROJECT}
 
             # deploy gogs
             HOSTNAME=$(oc get route jenkins -o template --template='{{.spec.host}}' | sed "s/jenkins-${CICD_NAMESPACE}.//g")

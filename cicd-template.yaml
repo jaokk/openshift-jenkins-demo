@@ -111,6 +111,11 @@ objects:
                   }
                 }
               }
+              stage('Archive App') {
+                steps {
+                  sh "cd helloworld && ${mvnCmd} deploy -Denforcer.skip=true -DskipTests=true"
+                }
+              }
               stage('Build Image') {
                 steps {
                   sh "cp helloworld/target/helloworld.war helloworld/target/ROOT.war"

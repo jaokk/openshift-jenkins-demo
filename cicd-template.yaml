@@ -113,7 +113,7 @@ objects:
               }
               stage('Archive App') {
                 steps {
-                  sh "cd helloworld && ${mvnCmd} deploy -Denforcer.skip=true -DskipTests=true"
+                  sh "cd helloworld && ${mvnCmd} deploy -X -Denforcer.skip=true -DskipTests=true"
                 }
               }
               stage('Build Image') {

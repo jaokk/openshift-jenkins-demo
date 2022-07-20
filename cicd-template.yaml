@@ -305,28 +305,28 @@ objects:
               oc secrets link default quay-cicd-secret --for=pull -n ${STAGE_PROJECT}
             else
               # dev
-              oc new-build --name=tasks --image-stream=eap74-openjdk11-openshift-rhel8:latest --binary=true -n ${DEV_PROJECT}
+              oc new-build --name=helloworld --image-stream=eap74-openjdk11-openshift-rhel8:latest --binary=true -n ${DEV_PROJECT}
               oc new-app tasks:latest --allow-missing-images --as-deployment-config -n ${DEV_PROJECT}
-              oc set triggers dc -l app=tasks --containers=tasks --from-image=tasks:latest --manual -n ${DEV_PROJECT}
+              oc set triggers dc -l app=helloworld --containers=tasks --from-image=tasks:latest --manual -n ${DEV_PROJECT}
               
               # stage
-              oc new-app tasks:stage --allow-missing-images --as-deployment-config -n ${STAGE_PROJECT}
-              oc set triggers dc -l app=tasks --containers=tasks --from-image=tasks:stage --manual -n ${STAGE_PROJECT}
+              oc new-app helloworld:stage --allow-missing-images --as-deployment-config -n ${STAGE_PROJECT}
+              oc set triggers dc -l app=helloworld --containers=tasks --from-image=helloworld:stage --manual -n ${STAGE_PROJECT}
             fi
             
             # dev project
-            oc expose dc/tasks --port=8080 -n ${DEV_PROJECT}
-            oc expose svc/tasks -n ${DEV_PROJECT}
-            oc set probe dc/tasks --readiness --get-url=http://:8080/ --initial-delay-seconds=30 --failure-threshold=10 --period-seconds=10 -n ${DEV_PROJECT}
-            oc set probe dc/tasks --liveness  --get-url=http://:8080/ --initial-delay-seconds=180 --failure-threshold=10 --period-seconds=10 -n ${DEV_PROJECT}
-            oc rollout cancel dc/tasks -n ${STAGE_PROJECT}
+            oc expose dc/helloworld --port=8080 -n ${DEV_PROJECT}
+            oc expose svc/helloworld -n ${DEV_PROJECT}
+            oc set probe dc/helloworld --readiness --get-url=http://:8080/ --initial-delay-seconds=30 --failure-threshold=10 --period-seconds=10 -n ${DEV_PROJECT}
+            oc set probe dc/helloworld --liveness  --get-url=http://:8080/ --initial-delay-seconds=180 --failure-threshold=10 --period-seconds=10 -n ${DEV_PROJECT}
+            oc rollout cancel dc/helloworld -n ${STAGE_PROJECT}
 
             # stage project
-            oc expose dc/tasks --port=8080 -n ${STAGE_PROJECT}
-            oc expose svc/tasks -n ${STAGE_PROJECT}
-            oc set probe dc/tasks --readiness --get-url=http://:8080/ --initial-delay-seconds=30 --failure-threshold=10 --period-seconds=10 -n ${STAGE_PROJECT}
-            oc set probe dc/tasks --liveness  --get-url=http://:8080/ --initial-delay-seconds=180 --failure-threshold=10 --period-seconds=10 -n ${STAGE_PROJECT}
-            oc rollout cancel dc/tasks -n ${DEV_PROJECT}
+            oc expose dc/helloworld --port=8080 -n ${STAGE_PROJECT}
+            oc expose svc/helloworld -n ${STAGE_PROJECT}
+            oc set probe dc/helloworld --readiness --get-url=http://:8080/ --initial-delay-seconds=30 --failure-threshold=10 --period-seconds=10 -n ${STAGE_PROJECT}
+            oc set probe dc/helloworld --liveness  --get-url=http://:8080/ --initial-delay-seconds=180 --failure-threshold=10 --period-seconds=10 -n ${STAGE_PROJECT}
+            oc rollout cancel dc/helloworld -n ${DEV_PROJECT}
 
             # deploy gogs
             HOSTNAME=$(oc get route jenkins -o template --template='{{.spec.host}}' | sed "s/jenkins-${CICD_NAMESPACE}.//g")
